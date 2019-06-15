@@ -1,0 +1,176 @@
+\documentclass[11pt]{article}
+
+\usepackage{hyperref}
+\usepackage[left=2.5cm,top=2cm,right=2.5cm,bottom=2cm,nohead,nofoot]{geometry}
+\usepackage{clrscode3e} 
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{hyperref}
+
+
+\begin{document}
+  \nocite{*}
+  \author{Sean Mahoney}
+  \title{Exploration of Winnow 2 and Naive Bayes Classifier}
+  \maketitle
+
+\section{Abstract}
+
+In computational learning theory, probably approximately correct (PAC) learning is a framework for mathematical analysis of machine learning. [1] Classifiers such as Winnow and Naïve Bayes output a class of possible functions that can separate labels based on a model that is trained on labeled input vectors.  This paper explores 2 different types of classifiers through a rudimentary python implementation. 
+
+
+\section{Introduction and Problem Statement}
+This paper summarizes my hypothesis and findings for the exploration of 2 classifier algorithms, the Winnow 2 and Naïve Bayes. Both of these algorithms are linear classifiers that train on a set of examples, each generated according to some distribution for which we do not know the parameters for. The goal of the classifier is to train on the input set, and output a hypothesis that summarizes the actual parameters of the data distribution. 
+
+\section{Hypothesis}
+For this analysis I expect to see greater performance from the Naive Bayes classifier as compared to the Winnow 2 algorithm. This is due to the the more rigorous mathematical nature of the probabilistic approach as compared to the brute force weight derivation found in Winnow 2. I expect my Winnow 2 algorithm to achieve prediction results greater than a random choice of class selection, but am not optimistic that it will perform much better. I also expect to find datasets that are not linearly separable by the winnow algorithm, and therefore expect certain models to be untrainable. I also expect the classifiers to perform worse when the data exhibits multicollinearity, and the naive bayes in particular to suffer when the data is not independent. Because of my naive implementation of all functions (e.g. test train split), I anticipate class imbalance will be an issue, and effect classification performance. 
+
+
+\section{Algorithms Implemented}
+
+\subsection{Winnow 2} 
+
+The winnow 2 algorithm is implemented by instantiating a weight vector of all 1s, and continuously iterating over all rows to extract a weight vector that properly classifies the training set. The pseudocode is found below:
+
+\begin{codebox}
+\Procname{$\proc{winnow}(df,labels,theta,alpha)$}
+
+\li weights = [1]*rows
+\li \While class errors exist:
+\li 	\Then
+			$classified \gets (weights * row) \geq \theta $
+\li			$v2 \gets temp$
+\li \If classified != label
+\li 	\Then 
+			done = False
+\li 	\If classified == 1 and label == 0:
+\li 		\Then
+				demote weights
+\li 	\ElseIf classified == 0 and label==1:		\li 		\Then
+				promote weights		 			
+	 	\End
+	 \End
+\End
+\li Return weights
+\li		\End
+\end{codebox}
+
+
+
+\subsection{Naive Bayes} 
+Naive Bayes is a probabilistic implementation of a linear classifier. This simple algorithm takes advantage of the frequency of occurence of various features of a trained data set, and attempts to output a predicted label to some unseen data. The approach I used for continuous data was to obtain a trained model by performing the following:
+\begin{itemize}
+\item[1] Calculate the probability of each of the k class variables
+\item[2] Calculate the statistical data for each feature variable, independent of the class variable
+\item[3] Calculate the statistical data for each feature variable for each of the k labels
+\end{itemize}
+
+With this training data, I then calculated the probability that the test set was a member of a certain class by performing the following:
+\begin{enumerate}
+
+\item Iterating over each row, the following was calculated for each class label:
+\begin{enumerate}
+\item[1] Calculate the likelihood as follows:
+$(\prod_{i=1}^{n} P(X|Class))*P(Class)$ where X was the feature value stored in the column and n is the number of columns.
+\item[2] Multiply the likelihood by the P(Class) which is the frequency of the class value ($k/num_rows$)
+\item[3] OPTIONAL: Divide by the probability of each individual feature. This data is available in my implementation, but I chose to leave it out since this value does not depend on the class label, and is only used to normalize the overall input.
+\end{enumerate}
+\item For each row, store the maximum probability in a dictionary. If a new classifier exceeds this probability, append it to a list that has entries for each row.
+\item Return the list of classifiers
+\end{enumerate}
+
+\section{Experimental Approach}
+
+The conceptual approach for Winnow emulates the 2 player game approach described by Kivinen [4]. An adversarial teacher attempts to force as many mistakes as possible, while the learner attempts to minimize these mistakes. A hypothesis is formed based on the weight vector, and the teacher will present the outcome of that hypothesis in the function iteration. A vector of weights ($w_t$) and a theta value ($\theta_t$) form this initial hypothesis of the student. This hypothesis is presented to the teacher, who reports the outcome. Based on this outcome a new hypothesis is formed ($w_{t+1},\theta_{t+1}$) which makes the new hypothesis dependent on the old one. This update dependency persists throughout the entire iteration. Once the learner has properly separated all the input data into distinct sets, the algorithm terminates and a weight vector is returned.
+
+\par My implementation of Winnow was fairly straightforward with the exception of handling multi-class labels in the prediction of test set data. Two approaches to the multi-class problem were considered as described by Zimak [3]. The first approach was called the one-versus-all method and it employed a winner takes all (WTA) strategy that simply chose the classifier that one in the following function: $f(x) = argmax_i*w_i^T*x$. To implement this WTA strategy, I utilized an L1 loss function dependent on distance to the trained model parameter ($\theta$). Whichever classifier came closest to minimizing the absolute difference to theta was chosen as the winner. The second, and much more challenging approach, was the all versus all method. This method employed a tournament style or voting method where each all pairs of class labels are considered ($k \choose 2$ different classifiers). The winner is the classifier that has the highest number of wins, or most votes when the tournament is finished. 
+\par One versus all was employed over all-versus-all, mostly for simplicity of implementation. The AvA implementation has a quadratic number of classifiers, and based on some challenges I experienced training the model, I wanted to keep the complexity to a minimum. The main downfall of the OvA approach is that it struggles to properly classify data that is not linearly separable, which the Winnow model as a whole is susceptible to.
+
+\par The naive Bayes implementation was similar to the method described by Rish [5]. My approach is purely a linear implementation with no focus or exploration of polynomial naive bayes. For continuous data my algorithm will calculate probabilities of feature variables belonging to a class using the normal distribution assumption for all samples. 
+
+\par For both implementations I will not be performing any statistical analysis on the input (as required in the forum discussion). No valid rows will be rejected, and no features will be removed. My splitting of the data into test and training sets will be a naive random sampling that does not attempt to distribute the class labels evenly. This will most likely result in severe class imbalances for cases where certain classes dominate the dataset. I will remove all rows that do not contain valid data as long as it makes up less than 5% of the overall dataset, and impute values using a statistical frequency analysis for rows that are greater than 5%. For the naive bayes I will not implement an m-estimate unless there is significant degredation of the classifier.
+
+\par The following 5 datasets were used for both the Winnow 2 and Naive Bayes:
+
+\begin{enumerate}
+\item Breast Cancer: Breast cancer dataset from University of Wisconsin hospitals. Contains 683 usable row vectors with unknown data removed (~2% of original dataset). The class labels for this dataset are binary and were either 0 for no breast cancer, or 1 for breast cancer. 
+\item Glass: 214 usable entries from Central Research Establishment. No samples were removed. Contained 7 class labels: window glass, building windows, vehicle windows, non-window glass, containers, tableware, and headlamps. All feature data was continuous and required discretization.
+
+\item Iris: Contains 150 usable entries with 3 class labels: Iris-setosa,Iris-versicolor, Iris-virginica.
+\item Soybeans: Contains 47 usable entries with 4 class labels: D1,D2,D3 and D4. Nine columns of features were removed since they contained all zeros.
+\item House Votes: Congressional vote record for 435 congressman. There are two class labels for this dataset: Republican and Democrat.
+
+\end{enumerate}
+
+The following functions were developed in support of each classifier:
+
+\begin{enumerate}
+\item \verb=check_weights(df,w,theta)=: Function that takes a given weight vector and verifies accuracy of classification based on theta
+\item \verb=predict_winnow_sample(sample,pred,weights,threshold)=: Predicts individual sample for winnow
+\item \verb=predict_winnow(df,preds,weights,threshold)=: Calls on above function to predict entire dataframe
+\item \verb=test_train_split(df,fraction, discretize, n_bins)=: custom function to split dataframe into test and training data. This function will also discretize inputs using sci-kit learn function for datasets that require higher level quantization of bins.
+\item \verb=build_dummies(df)=: Inputs a df and returns a new dataframe with dummy variables encoded
+\item \verb=discretize_values(df,num_bins)=: returns a dataframe that lumps continuous features into specified number of bins
+\item \verb=winnow(df, labels, theta, alpha)=: custom winnow algorithm used to train winnow 2 model
+\item \verb=train_models(df, preds, num_classes,theta,alpha)=: function that calls winnow 2 for datasets that have multi-class labels
+\item \verb=multi_class_pred(df, weights,theta)=: individual sample prediction function for multi-class problems
+\item \verb=multi_class_pred_df(df,weights,theta)=:returns prediction array for an entire multi-class dataframe (using above function)
+\item \verb=confusion(y_act,y_pred, margins)=:outputs confusion matrix 
+\item \verb=confusion_statistics(conf_table)=:outputs statistics for binary classes
+\item \verb=plot_confusion_matrix(df_conf, title, cmap)=: outputs heatmap plot of confusion matrix
+\item \verb=class_prob(classdata)=:used to estimate probability of input being in a feature for a given class (Naive Bayes)
+\item \verb=splitByClass(X,y)=: outputs a dictionary with class labels as key values and entries containing a list of all inputs belonging to that class
+\item \verb=feature_stats(X)=: mean and variance for each feature (not class dependent)
+\item \verb=feature_stats_byClass(classdict)=:mean and variance for features (dependent on class)
+\item \verb=prob_calc(xval,xmean,xvariance)=: outputs probability of sample based on normal distribution
+\item \verb=predict(test, fstats,by_class,classprob)=: returns output matrix of predictions for all rows in a given test set
+\end{enumerate}
+
+
+\section{Presentation of Results}
+Winnow:
+Breast cancer: 213 /225  accuracy prediction (96%)
+Glass: 
+Iris: 34/49 correct predictions (70%)
+Soy: 5/11 correct predictions (46%)
+
+Naive Bayes:
+Breast Cancer:203/225 (90%)
+Glass: 33/70 = 47%
+Iris: 47/49 = 96%
+Soy: 15/15 = 100%
+Votes: 128/143 = 90%
+\section{Behavior of Algorithms}
+Several issues were noted during the testing and implementation of these algorithms.
+\begin{enumerate}
+\item No statistical analysis was performed on the input features. Traditional regression models and other ML algorithms are highly dependent on features that are independent and do not have a strong correlation. 
+\item The Naive Bayes was initially highly inaccurate and required the implementation of an m estimate term in the likelihood calculation. 
+\item Class imbalance and small sample sizes directly correlated to poor performance seen on several datasets.
+\item The splitting of datasets was done randomly and without regard to classification balance. As a result, some datasets required several iterations of resampling in order to find a linearly separable combination to train on.
+\item Model parameter tuning was performed in the winnow implementation. The best parameter for theta was empirically found to be 1/2 * number of features. For difficult to separate datasets, bin sizes of 10 were employed to give the input more fidelity and the step size was reduced to as low as 1.2 in several cases. 
+\item One dataset (glass) was untrainable (67% split) under the winnow model using my custom discretize function. I elected to use the sci-kit learn one-hot encoding with discretization to get this dataset to train properly. Once I employed quantized bins (verse uniform size bins) the dataset trained as expected. My discretization function utilized only uniform binning, with quantized binning being an option for future revisions. The dataset would train for very small splits (.27)
+\item My house votes model was completely untrainable for winnow. No amount of model tuning resulted in a trained model, even with the use of sci-kit learn to discretize the inputs. 
+\item Feature scaling was not required for this assignment, but I did utilize it on one dataset for testing purposes. Using the sci-kit learn feature scaling, I noted a 75% reduction in training time for the glass dataset.
+\item Naive bayes was successful in training all models, and had far better results. The only poor performer was the glass dataframe.
+
+\end{enumerate}
+\section{Summary}
+Naive Bayes models performed significantly better than Winnow models. Performance of winnow was highly correlated to separability of the data, and training size of the input. Future areas of study for me will be to implement an AvA tournament style prediction technique for the winnow classifiers. Separability of inputs based on discretization of inputs resulted in problematic behavior for 2 datasets with the winnow model, one of which was mostly overcome by increasing bin sizes and using a quantile method for binning.
+
+\section{References} 
+\begin{itemize}
+\item[1]Clarkson, K. L., Hazan, E., and Woodruff, D. P. 2012. Sublinear optimization for machine learning. J. ACM 59, 5, Article 23 (October 2012), 49 pages. DOI = 10.1145/2371656.2371658 http://doi.acm.org/10.1145/2371656.2371658\\
+
+\item[2] Maria-Florina Balcan, Carnegie Mellow School of Computer Sciences, Lecture 5, http://www.cs.cmu.edu/~ninamf/ML11/lect0906.pdf
+
+\item[3] Zimak, Dav Arthur, Alogirthms and analysis for multi-category classification, Dissertation for Doctor of Philosophy in Computer Science, University of Illinois at Urbana-Champaign, 2006, http://cogcomp.org/papers/Zimak06.pdf
+
+\item[4] Kivinen, J Warmuth, M.K., Auer,P, Perceptron algorithm versus Winnow, Artificial Intelligence Journal Issue 97, 1996 
+
+\item[5] Rish,I, Empirical study of the naive Bayes classifier, T.J. Watson Research Center, https://www.cc.gatech.edu/~isbell/reading/papers/Rish.pdf
+
+\item[6] \url{https://en.wikipedia.org/wiki/Probably_approximately_correct_learning}
+
+\end{itemize}
+
+\end{document}
